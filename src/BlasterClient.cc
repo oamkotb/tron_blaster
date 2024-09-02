@@ -2,6 +2,14 @@
 
 #include <IRremote.hpp>
 
+#define POWER_UP_SFX   1
+#define ACTIVATED_SFX  2
+#define EMPTY_SFX      3
+#define FIRE_SFX       4
+#define DEPLETED_SFX   5
+#define ACQUIRED_SFX   6
+#define POWER_DOWN_SFX 7
+
 // Const Pin definitions
 static const uint8_t IR_SEND_PIN = 3;
 static const uint8_t LASER_PIN = 4;
@@ -55,6 +63,8 @@ void BlasterClient::init()
   _trigger_pressed = false;
   _last_trigger_state = HIGH;
 
+  _dfplayer.play(POWER_UP_SFX);
+
   // Flash to indicate startup
   for (int i = 0; i < 10; i++)
   {
@@ -63,7 +73,7 @@ void BlasterClient::init()
     digitalWrite(LASER_PIN, LOW);
     delay(200);
   }
-
+  _dfplayer.play(ACTIVATED_SFX);
 }
 
 // Update the BlasterClient state
@@ -73,7 +83,14 @@ bool BlasterClient::update()
   if (millis() - last_update >= UPDATE_INTERVAL)
     last_update = millis();
   else
+  {
+    if (_is_reset)
+    {
+      _dfplayer.play(POWER_DOWN_SFX);
+      delay(5000);
+    }
     return _is_reset;
+  }
 
   // Check if the trigger is pressed 
   // Read the current state of the trigger pin
@@ -89,16 +106,10 @@ bool BlasterClient::update()
     _trigger_pressed = false;
 
   // Handle the current state (armed or disarmed)
-  switch (_armed)
-  {
-    case 0:
-      disarmed();
-      break;
-    
-    case 1:
-      armed();
-      break;
-  }
+  if (_armed)
+    armed();
+  else
+    disarmed();
 
   _last_trigger_state = trigger_state;
 
@@ -118,7 +129,7 @@ void BlasterClient::disarmed()
 
   if (_trigger_pressed)
   {
-    _dfplayer.play(4);
+    _dfplayer.play(EMPTY_SFX);
     delay(900);
   }
 
@@ -144,7 +155,7 @@ void BlasterClient::armed()
     --_bullets;
   
   // Send IR signal
-  _dfplayer.play(1);
+  _dfplayer.play(FIRE_SFX);
   IrSender.sendNECRaw(3016);
   Serial.println("IR signal sent");
   Serial.print("Bullet count: ");
@@ -155,9 +166,9 @@ void BlasterClient::armed()
   if (_bullets == 0)
   {
     _armed = false;
-    _dfplayer.play(3);
+    _dfplayer.play(DEPLETED_SFX);
 
-    // delay(2000);
+    delay(2000);
   }
 }
 
@@ -228,7 +239,7 @@ void BlasterClient::addAmmo(char data[16])
     Serial.println(amount);
   }
 
-  _dfplayer.play(2);
+  _dfplayer.play(ACQUIRED_SFX);
   delay(2000);
 }
 
