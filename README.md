@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/bf528cae-4c1f-430b-8ecf-c07d3ef57ff9)# Tron Blaster
+# Tron Blaster
 A blaster that fires IR signals to be detected by a stationary targets. Can be loaded and reset using designated RFID cards.
 
 ## Getting Started
