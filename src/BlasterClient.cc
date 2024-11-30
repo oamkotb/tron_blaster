@@ -10,7 +10,7 @@
 #define ACQUIRED_SFX   6
 #define POWER_DOWN_SFX 7
 
-// Const Pin definitions
+// Const pin definitions
 static const uint8_t IR_SEND_PIN = 3;
 static const uint8_t LASER_PIN = 4;
 static const uint8_t FPSERIAL_RX = 5;
@@ -18,7 +18,6 @@ static const uint8_t FPSERIAL_TX = 6;
 static const uint8_t TRIGGER_PIN = 8;
 static const uint8_t RST_PIN = 9;
 static const uint8_t SS_PIN = 10;
-
 
 SoftwareSerial softSerial(FPSERIAL_RX, FPSERIAL_TX);
 
@@ -32,13 +31,11 @@ void BlasterClient::init()
   // Initialize pins
   pinMode(LASER_PIN, OUTPUT); // Laser output pin
   pinMode(TRIGGER_PIN, INPUT_PULLUP); // Trigger input pin
-
   // Initialize SPI communication
   SPI.begin();
   
   // Initialize RFID reader
   _rfreader.PCD_Init(SS_PIN, RST_PIN);
-  delay(4);
 
   // Initialize IR sender
   IrSender.begin(IR_SEND_PIN);
@@ -53,11 +50,12 @@ void BlasterClient::init()
     while(true);
   }
   else
+  {
     Serial.println("DFPlayer Mini online.");
+  }
   _dfplayer.volume(30);
 
   // Initialize variables
-  _is_reset = false;
   _bullets = 0;
   _armed = false;
   _trigger_pressed = false;
@@ -74,22 +72,23 @@ void BlasterClient::init()
     delay(200);
   }
   _dfplayer.play(ACTIVATED_SFX);
+  current_interval = 2000;
 }
 
 // Update the BlasterClient state
-bool BlasterClient::update()
+void BlasterClient::update()
 {
+  unsigned long current_time = millis();
+  
   // Non-blocking timing of update
-  if (millis() - last_update >= UPDATE_INTERVAL)
-    last_update = millis();
+  if (current_time - last_update >= current_interval)
+  {
+    current_interval = DEFAULT_INTERVAL;
+    last_update = current_time;
+  }
   else
   {
-    if (_is_reset)
-    {
-      _dfplayer.play(POWER_DOWN_SFX);
-      delay(5000);
-    }
-    return _is_reset;
+    return;
   }
 
   // Check if the trigger is pressed 
@@ -112,8 +111,6 @@ bool BlasterClient::update()
     disarmed();
 
   _last_trigger_state = trigger_state;
-
-  return _is_reset;
 }
 
 /*** Main Blaster Functions ***/
@@ -127,13 +124,14 @@ void BlasterClient::disarmed()
   // Check for RFID cards and process their data
   readCard();
 
+
   if (_trigger_pressed)
   {
     _dfplayer.play(EMPTY_SFX);
-    delay(900);
+    current_interval = 900;
   }
 
-  if (_bullets != 0)
+  if (_bullets > 0)
     _armed = true;
 }
 
@@ -147,28 +145,29 @@ void BlasterClient::armed()
   readCard();
 
   // Check if there are bullets and the trigger is pressed
-  if (!(_bullets && _trigger_pressed && _last_trigger_state == HIGH))
-    return;
+  if (_bullets && _trigger_pressed && _last_trigger_state == HIGH)
+  {
+    // Decrement bullets if not infinite
+    if (_bullets != -1)
+      --_bullets;
+    
+    // Send IR signal
+    _dfplayer.play(FIRE_SFX);
+    current_interval = 400;
 
-  // Decrement bullets if not infinite
-  if (_bullets != -1)
-    --_bullets;
+    IrSender.sendNECRaw(3016);
+    Serial.println("IR signal sent");
+    Serial.print("Bullet count: ");
+    Serial.println(_bullets);
+  }
   
-  // Send IR signal
-  _dfplayer.play(FIRE_SFX);
-  IrSender.sendNECRaw(3016);
-  Serial.println("IR signal sent");
-  Serial.print("Bullet count: ");
-  Serial.println(_bullets);
-
-  // delay(900);
 
   if (_bullets == 0)
   {
     _armed = false;
     _dfplayer.play(DEPLETED_SFX);
 
-    delay(2000);
+    current_interval = 2000;
   }
 }
 
@@ -217,11 +216,6 @@ void BlasterClient::readCard()
       _cards[_card_count++] = id;  // Mark the card as used
     }
   }
-  else if (isReset(data))
-  {
-    _is_reset = true;
-    Serial.println("Reset called!");
-  }
 }
 
 /** Blaster Helper Functions ***/
@@ -240,7 +234,7 @@ void BlasterClient::addAmmo(char data[16])
   }
 
   _dfplayer.play(ACQUIRED_SFX);
-  delay(2000);
+  current_interval = 2000;
 }
 
 /*** Card Reader Helper Functions ***/
@@ -293,14 +287,6 @@ void BlasterClient::readBlock(byte block, byte buffer[18], byte buffer_size)
 bool BlasterClient::isAmmo(char data[16])
 {
   if (data[0] == 'A')
-    return true;
-  return false;
-}
-
-// Check if the data represents a reset card
-bool BlasterClient::isReset(char data[16])
-{
-  if (data[0] == 'R')
     return true;
   return false;
 }

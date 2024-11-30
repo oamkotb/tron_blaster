@@ -17,7 +17,7 @@ public:
   void init();
 
   // Update the BlasterClient state
-  bool update();
+  void update();
 
 private:
 
@@ -46,9 +46,9 @@ private:
   bool isAmmo(char data[16]);
   bool isReset(char data[16]);
 
-  const uint32_t UPDATE_INTERVAL = 50;
-  uint32_t last_update = 0;
-  bool _is_reset;
+  const uint32_t DEFAULT_INTERVAL = 100;
+  uint32_t current_interval = 100;
+  unsigned long last_update;
   
   bool _armed;               // Indicates whether the blaster is armed
   int16_t _bullets;           // Number of bullets left (-1 for infinite)
